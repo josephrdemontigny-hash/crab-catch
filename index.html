@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>Crab Catch!</title>
+  <style>
+    :root {
+      --sky: #87CEEB;
+      --sand: #F5D76E;
+      --sand-dark: #E8C547;
+      --foam: #FFF8E7;
+      --ocean: #4FC3F7;
+      --rock: #8B7355;
+      --rock-shadow: #6B5344;
+      --accent: #FF6B35;
+      --good: #2ECC71;
+      --text: #2C3E50;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      font-family: "Segoe UI", "Comic Sans MS", "Chalkboard SE", system-ui, sans-serif;
+      background: linear-gradient(180deg, var(--sky) 0%, #B8E0F0 35%, var(--sand) 55%, var(--sand-dark) 100%);
+      color: var(--text);
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100%;
+      padding: 12px;
+    }
+
+    .screen {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
+      max-width: 440px;
+      text-align: center;
+    }
+
+    .screen.active {
+      display: flex;
+    }
+
+    /* —— Start —— */
+    #start-screen h1 {
+      font-size: clamp(2.2rem, 10vw, 3.2rem);
+      color: #fff;
+      text-shadow: 3px 3px 0 #E85D04, 0 4px 12px rgba(0,0,0,0.2);
+      margin-bottom: 8px;
+      line-height: 1.1;
+    }
+
+    .subtitle {
+      font-size: 1.15rem;
+      color: var(--text);
+      background: rgba(255,255,255,0.75);
+      padding: 10px 18px;
+      border-radius: 20px;
+      margin: 12px 0 28px;
+      max-width: 320px;
+    }
+
+    .emoji-row {
+      font-size: 2.8rem;
+      letter-spacing: 8px;
+      margin-bottom: 20px;
+      animation: bob 2s ease-in-out infinite;
+    }
+
+    @keyframes bob {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-8px); }
+    }
+
+    .btn {
+      appearance: none;
+      border: none;
+      cursor: pointer;
+      font: inherit;
+      font-weight: 700;
+      font-size: 1.4rem;
+      padding: 18px 48px;
+      border-radius: 50px;
+      background: var(--accent);
+      color: #fff;
+      box-shadow: 0 6px 0 #C44D1A, 0 8px 20px rgba(0,0,0,0.2);
+      transition: transform 0.1s, box-shadow 0.1s;
+      min-height: 64px;
+      min-width: 180px;
+    }
+
+    .btn:active {
+      transform: translateY(4px);
+      box-shadow: 0 2px 0 #C44D1A, 0 4px 10px rgba(0,0,0,0.2);
+    }
+
+    .btn.secondary {
+      background: var(--good);
+      box-shadow: 0 6px 0 #1E8449, 0 8px 20px rgba(0,0,0,0.2);
+      margin-top: 12px;
+    }
+
+    .btn.secondary:active {
+      box-shadow: 0 2px 0 #1E8449, 0 4px 10px rgba(0,0,0,0.2);
+    }
+
+    /* —— HUD —— */
+    #hud {
+      display: flex;
+      justify-content: space-between;
+      width: 100%;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .stat {
+      flex: 1;
+      background: rgba(255,255,255,0.9);
+      border-radius: 16px;
+      padding: 10px 14px;
+      box-shadow: 0 3px 0 rgba(0,0,0,0.08);
+    }
+
+    .stat-label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      opacity: 0.7;
+    }
+
+    .stat-value {
+      font-size: 1.6rem;
+      font-weight: 800;
+      color: var(--accent);
+    }
+
+    #timer-value.urgent {
+      color: #E74C3C;
+      animation: pulse 0.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.08); }
+    }
+
+    /* —— Grid —— */
+    #beach {
+      position: relative;
+      width: 100%;
+      background: linear-gradient(180deg, var(--ocean) 0%, #81D4FA 12%, var(--sand) 18%);
+      border-radius: 24px;
+      padding: 28px 12px 16px;
+      box-shadow: inset 0 8px 0 rgba(255,255,255,0.25), 0 8px 24px rgba(0,0,0,0.15);
+    }
+
+    .waves {
+      position: absolute;
+      top: 6px;
+      left: 10%;
+      right: 10%;
+      height: 14px;
+      background: repeating-linear-gradient(
+        90deg,
+        transparent,
+        transparent 18px,
+        rgba(255,255,255,0.5) 18px,
+        rgba(255,255,255,0.5) 28px
+      );
+      border-radius: 50%;
+      opacity: 0.7;
+      pointer-events: none;
+    }
+
+    #grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      width: 100%;
+    }
+
+    .cell {
+      aspect-ratio: 1;
+      position: relative;
+      perspective: 600px;
+      min-height: 72px;
+    }
+
+    .rock-face {
+      width: 100%;
+      height: 100%;
+      border-radius: 50% 45% 50% 48% / 45% 50% 48% 52%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: clamp(1.8rem, 8vw, 2.6rem);
+      cursor: pointer;
+      transition: transform 0.25s ease, box-shadow 0.25s;
+      box-shadow: 0 6px 0 var(--rock-shadow), 0 8px 12px rgba(0,0,0,0.15);
+      background: linear-gradient(145deg, #A89070, var(--rock));
+      position: absolute;
+      inset: 0;
+      touch-action: manipulation;
+    }
+
+    .rock-face:active:not(.flipped):not(.disabled) {
+      transform: translateY(3px);
+      box-shadow: 0 3px 0 var(--rock-shadow);
+    }
+
+    .rock-face.flipped {
+      transform: rotateY(90deg) scale(0.6);
+      opacity: 0;
+      pointer-events: none;
+      box-shadow: none;
+    }
+
+    .rock-face.disabled {
+      cursor: default;
+      opacity: 0.35;
+      filter: grayscale(0.4);
+      pointer-events: none;
+    }
+
+    .under {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: clamp(1.8rem, 8vw, 2.8rem);
+      border-radius: 16px;
+      background: rgba(255, 248, 220, 0.55);
+      opacity: 0;
+      transform: scale(0.5);
+      transition: opacity 0.2s, transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+      pointer-events: none;
+    }
+
+    .under.visible {
+      opacity: 1;
+      transform: scale(1);
+    }
+
+    .under.catchable {
+      pointer-events: auto;
+      cursor: pointer;
+      animation: wiggle 0.35s ease-in-out infinite;
+      background: rgba(255, 220, 180, 0.85);
+      box-shadow: 0 0 0 4px rgba(255, 107, 53, 0.45);
+      border-radius: 50%;
+      touch-action: manipulation;
+    }
+
+    @keyframes wiggle {
+      0%, 100% { transform: scale(1) rotate(-4deg); }
+      50% { transform: scale(1.08) rotate(4deg); }
+    }
+
+    .under.escaping {
+      animation: scuttle 0.55s ease-in forwards;
+      pointer-events: none;
+    }
+
+    @keyframes scuttle {
+      0% { transform: scale(1) translate(0, 0); opacity: 1; }
+      40% { transform: scale(1.1) translate(12px, -8px) rotate(20deg); }
+      100% { transform: scale(0.4) translate(60px, 40px) rotate(90deg); opacity: 0; }
+    }
+
+    .under.caught {
+      animation: catchPop 0.45s ease-out forwards;
+      pointer-events: none;
+    }
+
+    @keyframes catchPop {
+      0% { transform: scale(1); }
+      40% { transform: scale(1.35); }
+      100% { transform: scale(0) translateY(-30px); opacity: 0; }
+    }
+
+    #feedback {
+      margin-top: 12px;
+      min-height: 1.6em;
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--text);
+      text-shadow: 0 1px 0 rgba(255,255,255,0.6);
+    }
+
+    #feedback.good { color: #1E8449; }
+    #feedback.bad { color: #C0392B; }
+
+    /* —— End —— */
+    #end-screen h2 {
+      font-size: clamp(1.8rem, 8vw, 2.4rem);
+      color: #fff;
+      text-shadow: 2px 2px 0 #E85D04;
+      margin-bottom: 12px;
+    }
+
+    .final-score {
+      background: rgba(255,255,255,0.92);
+      border-radius: 24px;
+      padding: 24px 32px;
+      margin: 16px 0 24px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.12);
+    }
+
+    .final-score .big {
+      font-size: 3.5rem;
+      font-weight: 800;
+      color: var(--accent);
+      line-height: 1;
+    }
+
+    .final-score .label {
+      font-size: 1.1rem;
+      margin-top: 6px;
+    }
+
+    .end-msg {
+      font-size: 1.2rem;
+      background: rgba(255,255,255,0.8);
+      padding: 12px 20px;
+      border-radius: 16px;
+      margin-bottom: 24px;
+      max-width: 300px;
+    }
+
+    .hint {
+      margin-top: 20px;
+      font-size: 0.9rem;
+      opacity: 0.75;
+      background: rgba(255,255,255,0.5);
+      padding: 8px 14px;
+      border-radius: 12px;
+    }
+  </style>
+</head>
+<body>
+  <!-- Start -->
+  <div id="start-screen" class="screen active">
+    <div class="emoji-row" aria-hidden="true">🪨🦀🌊</div>
+    <h1>Crab Catch!</h1>
+    <p class="subtitle">Flip the rocks and tap the crabs before they scurry away!</p>
+    <button class="btn" id="start-btn" type="button">Start!</button>
+    <p class="hint">You have 50 seconds. Catch as many crabs as you can!</p>
+  </div>
+
+  <!-- Play -->
+  <div id="play-screen" class="screen">
+    <div id="hud">
+      <div class="stat">
+        <div class="stat-label">Crabs</div>
+        <div class="stat-value" id="score-value">0</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Time</div>
+        <div class="stat-value" id="timer-value">50</div>
+      </div>
+    </div>
+    <div id="beach">
+      <div class="waves" aria-hidden="true"></div>
+      <div id="grid" role="grid" aria-label="Rocks on the beach"></div>
+    </div>
+    <div id="feedback" aria-live="polite"></div>
+  </div>
+
+  <!-- End -->
+  <div id="end-screen" class="screen">
+    <div class="emoji-row" aria-hidden="true">🎉🦀✨</div>
+    <h2>Round Over!</h2>
+    <div class="final-score">
+      <div class="big" id="final-score">0</div>
+      <div class="label">crabs caught</div>
+    </div>
+    <p class="end-msg" id="end-msg">Great job!</p>
+    <button class="btn" id="again-btn" type="button">Play again!</button>
+  </div>
+
+  <script>
+    (function () {
+      const ROWS = 3;
+      const COLS = 4;
+      const ROUND_SECONDS = 50;
+      const CRAB_WINDOW_MS = 1800;
+      const TOTAL = ROWS * COLS;
+
+      // Roughly: ~40% empty, ~40% crab, ~20% surprise
+      const CONTENTS = [
+        "empty", "empty", "empty", "empty", "empty",
+        "crab", "crab", "crab", "crab", "crab",
+        "surprise", "surprise"
+      ];
+
+      const EMPTY_EMOJI = ["🐚", "✨", "🫧", "🏖️"];
+      const SURPRISE_EMOJI = ["🌿", "⭐", "🐟", "🪸", "🐙"];
+      const CRAB = "🦀";
+      const ROCK = "🪨";
+
+      const startScreen = document.getElementById("start-screen");
+      const playScreen = document.getElementById("play-screen");
+      const endScreen = document.getElementById("end-screen");
+      const gridEl = document.getElementById("grid");
+      const scoreEl = document.getElementById("score-value");
+      const timerEl = document.getElementById("timer-value");
+      const feedbackEl = document.getElementById("feedback");
+      const finalScoreEl = document.getElementById("final-score");
+      const endMsgEl = document.getElementById("end-msg");
+
+      let score = 0;
+      let timeLeft = ROUND_SECONDS;
+      let timerId = null;
+      let flippedCount = 0;
+      let gameActive = false;
+      let cells = [];
+      let audioCtx = null;
+
+      function showScreen(el) {
+        [startScreen, playScreen, endScreen].forEach(function (s) {
+          s.classList.toggle("active", s === el);
+        });
+      }
+
+      function shuffle(arr) {
+        const a = arr.slice();
+        for (let i = a.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          const t = a[i];
+          a[i] = a[j];
+          a[j] = t;
+        }
+        return a;
+      }
+
+      function pick(arr) {
+        return arr[Math.floor(Math.random() * arr.length)];
+      }
+
+      function ensureAudio() {
+        if (!audioCtx) {
+          try {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          } catch (e) {
+            audioCtx = null;
+          }
+        }
+        if (audioCtx && audioCtx.state === "suspended") {
+          audioCtx.resume();
+        }
+      }
+
+      function beep(freq, duration, type) {
+        if (!audioCtx) return;
+        try {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = type || "sine";
+          osc.frequency.value = freq;
+          gain.gain.value = 0.12;
+          gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start();
+          osc.stop(audioCtx.currentTime + duration);
+        } catch (e) { /* ignore */ }
+      }
+
+      function setFeedback(text, kind) {
+        feedbackEl.textContent = text;
+        feedbackEl.className = kind || "";
+      }
+
+      function buildBoard() {
+        gridEl.innerHTML = "";
+        cells = [];
+        const kinds = shuffle(CONTENTS);
+        flippedCount = 0;
+
+        for (let i = 0; i < TOTAL; i++) {
+          const cell = document.createElement("div");
+          cell.className = "cell";
+          cell.setAttribute("role", "gridcell");
+
+          const under = document.createElement("div");
+          under.className = "under";
+          under.setAttribute("aria-hidden", "true");
+
+          const rock = document.createElement("button");
+          rock.type = "button";
+          rock.className = "rock-face";
+          rock.textContent = ROCK;
+          rock.setAttribute("aria-label", "Flip rock " + (i + 1));
+
+          const kind = kinds[i];
+          let emoji = "";
+          if (kind === "crab") {
+            emoji = CRAB;
+          } else if (kind === "surprise") {
+            emoji = pick(SURPRISE_EMOJI);
+          } else {
+            emoji = pick(EMPTY_EMOJI);
+          }
+          under.textContent = emoji;
+
+          const state = {
+            kind: kind,
+            flipped: false,
+            caught: false,
+            escaped: false,
+            escapeTimer: null,
+            rock: rock,
+            under: under,
+            cell: cell
+          };
+
+          rock.addEventListener("click", function () {
+            flipRock(state);
+          });
+
+          under.addEventListener("click", function (e) {
+            e.stopPropagation();
+            tryCatch(state);
+          });
+
+          cell.appendChild(under);
+          cell.appendChild(rock);
+          gridEl.appendChild(cell);
+          cells.push(state);
+        }
+      }
+
+      function flipRock(state) {
+        if (!gameActive || state.flipped) return;
+
+        state.flipped = true;
+        flippedCount++;
+        state.rock.classList.add("flipped");
+        state.under.classList.add("visible");
+        beep(320, 0.08, "triangle");
+
+        if (state.kind === "crab") {
+          state.under.classList.add("catchable");
+          state.under.setAttribute("aria-label", "Tap the crab!");
+          state.under.setAttribute("aria-hidden", "false");
+          setFeedback("Quick! Tap the crab!", "good");
+          beep(520, 0.1, "square");
+
+          state.escapeTimer = setTimeout(function () {
+            if (!state.caught && gameActive) {
+              escapeCrab(state);
+            }
+          }, CRAB_WINDOW_MS);
+        } else if (state.kind === "surprise") {
+          setFeedback("Silly surprise! " + state.under.textContent, "");
+          beep(280, 0.12, "sine");
+          checkBoardDone();
+        } else {
+          setFeedback("Just sand…", "");
+          checkBoardDone();
+        }
+      }
+
+      function tryCatch(state) {
+        if (!gameActive || state.kind !== "crab" || state.caught || state.escaped) return;
+        if (!state.flipped) return;
+
+        state.caught = true;
+        if (state.escapeTimer) {
+          clearTimeout(state.escapeTimer);
+          state.escapeTimer = null;
+        }
+        state.under.classList.remove("catchable");
+        state.under.classList.add("caught");
+        score++;
+        scoreEl.textContent = String(score);
+        setFeedback("Gotcha! 🦀 +" + score, "good");
+        beep(660, 0.1, "sine");
+        setTimeout(function () { beep(880, 0.12, "sine"); }, 80);
+        checkBoardDone();
+      }
+
+      function escapeCrab(state) {
+        if (state.caught || state.escaped) return;
+        state.escaped = true;
+        state.under.classList.remove("catchable");
+        state.under.classList.add("escaping");
+        setFeedback("Got away!", "bad");
+        beep(180, 0.2, "sawtooth");
+        setTimeout(function () {
+          state.under.classList.remove("visible", "escaping");
+          state.under.textContent = "💨";
+          state.under.classList.add("visible");
+          state.under.style.opacity = "0.5";
+        }, 550);
+        checkBoardDone();
+      }
+
+      function checkBoardDone() {
+        if (!gameActive) return;
+        // Done when every cell is resolved: flipped and (not crab, or crab caught/escaped)
+        const allDone = cells.every(function (c) {
+          if (!c.flipped) return false;
+          if (c.kind === "crab") return c.caught || c.escaped;
+          return true;
+        });
+        if (allDone) {
+          endRound();
+        }
+      }
+
+      function tick() {
+        timeLeft--;
+        timerEl.textContent = String(timeLeft);
+        if (timeLeft <= 10) {
+          timerEl.classList.add("urgent");
+        }
+        if (timeLeft <= 0) {
+          endRound();
+        }
+      }
+
+      function startRound() {
+        ensureAudio();
+        score = 0;
+        timeLeft = ROUND_SECONDS;
+        gameActive = true;
+        scoreEl.textContent = "0";
+        timerEl.textContent = String(ROUND_SECONDS);
+        timerEl.classList.remove("urgent");
+        setFeedback("Flip a rock!", "");
+        buildBoard();
+        showScreen(playScreen);
+        if (timerId) clearInterval(timerId);
+        timerId = setInterval(tick, 1000);
+        beep(440, 0.1, "sine");
+      }
+
+      function endMessage(n) {
+        if (n === 0) return "Keep trying — those crabs are sneaky!";
+        if (n <= 2) return "Nice start! Can you catch more?";
+        if (n <= 4) return "Awesome crab catching!";
+        return "Wow! You're a crab champion! 🏆";
+      }
+
+      function endRound() {
+        if (!gameActive) return;
+        gameActive = false;
+        if (timerId) {
+          clearInterval(timerId);
+          timerId = null;
+        }
+        cells.forEach(function (c) {
+          if (c.escapeTimer) {
+            clearTimeout(c.escapeTimer);
+            c.escapeTimer = null;
+          }
+          c.rock.classList.add("disabled");
+          c.under.classList.remove("catchable");
+        });
+        finalScoreEl.textContent = String(score);
+        endMsgEl.textContent = endMessage(score);
+        showScreen(endScreen);
+        beep(523, 0.15, "sine");
+        setTimeout(function () { beep(659, 0.15, "sine"); }, 120);
+        setTimeout(function () { beep(784, 0.25, "sine"); }, 240);
+      }
+
+      document.getElementById("start-btn").addEventListener("click", startRound);
+      document.getElementById("again-btn").addEventListener("click", startRound);
+    })();
+  </script>
+</body>
+</html>
