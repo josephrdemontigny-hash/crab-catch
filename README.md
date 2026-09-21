@@ -1,6 +1,5 @@
-# Crab Catch!
+# Zayn's Crab Catching Game
 
-Open `index.html` in a browser to play.
+Flip rocks on the beach — crabs scatter in every direction! Tap each running crab before it gets away.
 
-
-Play: open index.html or visit the GitHub Pages link after it is enabled.
+Open `index.html` in a browser to play, or visit the live GitHub Pages site.
