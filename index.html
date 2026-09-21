@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-  <title>Crab Catch!</title>
+  <title>Zayn's Crab Catching Game</title>
   <style>
     :root {
       --sky: #87CEEB;
@@ -58,11 +58,11 @@
 
     /* —— Start —— */
     #start-screen h1 {
-      font-size: clamp(2.2rem, 10vw, 3.2rem);
+      font-size: clamp(1.7rem, 7.5vw, 2.5rem);
       color: #fff;
       text-shadow: 3px 3px 0 #E85D04, 0 4px 12px rgba(0,0,0,0.2);
       margin-bottom: 8px;
-      line-height: 1.1;
+      line-height: 1.15;
     }
 
     .subtitle {
@@ -163,6 +163,7 @@
     #beach {
       position: relative;
       width: 100%;
+      overflow: hidden;
       background: linear-gradient(180deg, var(--ocean) 0%, #81D4FA 12%, var(--sand) 18%);
       border-radius: 24px;
       padding: 28px 12px 16px;
@@ -192,6 +193,8 @@
       grid-template-columns: repeat(4, 1fr);
       gap: 10px;
       width: 100%;
+      position: relative;
+      z-index: 1;
     }
 
     .cell {
@@ -216,6 +219,7 @@
       position: absolute;
       inset: 0;
       touch-action: manipulation;
+      z-index: 2;
     }
 
     .rock-face:active:not(.flipped):not(.disabled) {
@@ -257,41 +261,53 @@
       transform: scale(1);
     }
 
-    .under.catchable {
-      pointer-events: auto;
+    /* Running crabs — absolute over beach */
+    .runner {
+      position: absolute;
+      width: 56px;
+      height: 56px;
+      font-size: 48px;
+      line-height: 56px;
+      text-align: center;
       cursor: pointer;
-      animation: wiggle 0.35s ease-in-out infinite;
-      background: rgba(255, 220, 180, 0.85);
-      box-shadow: 0 0 0 4px rgba(255, 107, 53, 0.45);
-      border-radius: 50%;
       touch-action: manipulation;
+      z-index: 20;
+      margin: 0;
+      padding: 0;
+      border: none;
+      background: transparent;
+      filter: drop-shadow(0 2px 3px rgba(0,0,0,0.25));
+      animation: crabWiggle 0.28s ease-in-out infinite;
+      will-change: left, top, transform;
     }
 
-    @keyframes wiggle {
-      0%, 100% { transform: scale(1) rotate(-4deg); }
-      50% { transform: scale(1.08) rotate(4deg); }
+    .runner:active {
+      transform: scale(1.15);
     }
 
-    .under.escaping {
-      animation: scuttle 0.55s ease-in forwards;
+    @keyframes crabWiggle {
+      0%, 100% { transform: rotate(-6deg) scale(1); }
+      50% { transform: rotate(6deg) scale(1.05); }
+    }
+
+    .runner.caught {
+      animation: catchPop 0.4s ease-out forwards;
       pointer-events: none;
     }
 
-    @keyframes scuttle {
-      0% { transform: scale(1) translate(0, 0); opacity: 1; }
-      40% { transform: scale(1.1) translate(12px, -8px) rotate(20deg); }
-      100% { transform: scale(0.4) translate(60px, 40px) rotate(90deg); opacity: 0; }
-    }
-
-    .under.caught {
-      animation: catchPop 0.45s ease-out forwards;
+    .runner.escaping {
+      animation: fadeOut 0.3s ease-in forwards;
       pointer-events: none;
     }
 
     @keyframes catchPop {
-      0% { transform: scale(1); }
-      40% { transform: scale(1.35); }
-      100% { transform: scale(0) translateY(-30px); opacity: 0; }
+      0% { transform: scale(1); opacity: 1; }
+      40% { transform: scale(1.4); opacity: 1; }
+      100% { transform: scale(0) translateY(-24px); opacity: 0; }
+    }
+
+    @keyframes fadeOut {
+      to { opacity: 0; transform: scale(0.5); }
     }
 
     #feedback {
@@ -351,14 +367,23 @@
       padding: 8px 14px;
       border-radius: 12px;
     }
+
+    @media (min-width: 400px) {
+      .runner {
+        width: 64px;
+        height: 64px;
+        font-size: 56px;
+        line-height: 64px;
+      }
+    }
   </style>
 </head>
 <body>
   <!-- Start -->
   <div id="start-screen" class="screen active">
     <div class="emoji-row" aria-hidden="true">🪨🦀🌊</div>
-    <h1>Crab Catch!</h1>
-    <p class="subtitle">Flip the rocks and tap the crabs before they scurry away!</p>
+    <h1>Zayn's Crab Catching Game</h1>
+    <p class="subtitle">Flip the rocks — crabs scatter everywhere! Tap each one before they get away!</p>
     <button class="btn" id="start-btn" type="button">Start!</button>
     <p class="hint">You have 50 seconds. Catch as many crabs as you can!</p>
   </div>
@@ -399,8 +424,13 @@
       const ROWS = 3;
       const COLS = 4;
       const ROUND_SECONDS = 50;
-      const CRAB_WINDOW_MS = 1800;
       const TOTAL = ROWS * COLS;
+      const CRAB_LIFE_MS = 2300;
+      const CRAB_MIN = 2;
+      const CRAB_MAX = 5;
+      // px per second — fun but fair for ages 5–8
+      const SPEED_MIN = 95;
+      const SPEED_MAX = 155;
 
       // Roughly: ~40% empty, ~40% crab, ~20% surprise
       const CONTENTS = [
@@ -417,6 +447,7 @@
       const startScreen = document.getElementById("start-screen");
       const playScreen = document.getElementById("play-screen");
       const endScreen = document.getElementById("end-screen");
+      const beachEl = document.getElementById("beach");
       const gridEl = document.getElementById("grid");
       const scoreEl = document.getElementById("score-value");
       const timerEl = document.getElementById("timer-value");
@@ -431,6 +462,9 @@
       let gameActive = false;
       let cells = [];
       let audioCtx = null;
+      let runners = [];
+      let rafId = null;
+      let lastTs = 0;
 
       function showScreen(el) {
         [startScreen, playScreen, endScreen].forEach(function (s) {
@@ -451,6 +485,10 @@
 
       function pick(arr) {
         return arr[Math.floor(Math.random() * arr.length)];
+      }
+
+      function randInt(min, max) {
+        return min + Math.floor(Math.random() * (max - min + 1));
       }
 
       function ensureAudio() {
@@ -487,7 +525,20 @@
         feedbackEl.className = kind || "";
       }
 
+      function clearRunners() {
+        runners.forEach(function (r) {
+          if (r.el && r.el.parentNode) r.el.parentNode.removeChild(r.el);
+        });
+        runners = [];
+        if (rafId) {
+          cancelAnimationFrame(rafId);
+          rafId = null;
+        }
+        lastTs = 0;
+      }
+
       function buildBoard() {
+        clearRunners();
         gridEl.innerHTML = "";
         cells = [];
         const kinds = shuffle(CONTENTS);
@@ -511,7 +562,7 @@
           const kind = kinds[i];
           let emoji = "";
           if (kind === "crab") {
-            emoji = CRAB;
+            emoji = "💨";
           } else if (kind === "surprise") {
             emoji = pick(SURPRISE_EMOJI);
           } else {
@@ -522,9 +573,8 @@
           const state = {
             kind: kind,
             flipped: false,
-            caught: false,
-            escaped: false,
-            escapeTimer: null,
+            resolved: false,
+            pending: 0,
             rock: rock,
             under: under,
             cell: cell
@@ -532,11 +582,6 @@
 
           rock.addEventListener("click", function () {
             flipRock(state);
-          });
-
-          under.addEventListener("click", function (e) {
-            e.stopPropagation();
-            tryCatch(state);
           });
 
           cell.appendChild(under);
@@ -556,71 +601,191 @@
         beep(320, 0.08, "triangle");
 
         if (state.kind === "crab") {
-          state.under.classList.add("catchable");
-          state.under.setAttribute("aria-label", "Tap the crab!");
-          state.under.setAttribute("aria-hidden", "false");
-          setFeedback("Quick! Tap the crab!", "good");
+          const count = randInt(CRAB_MIN, CRAB_MAX);
+          state.pending = count;
+          setFeedback("Crabs everywhere! Tap them!", "good");
           beep(520, 0.1, "square");
-
-          state.escapeTimer = setTimeout(function () {
-            if (!state.caught && gameActive) {
-              escapeCrab(state);
-            }
-          }, CRAB_WINDOW_MS);
+          spawnRunners(state, count);
         } else if (state.kind === "surprise") {
+          state.resolved = true;
           setFeedback("Silly surprise! " + state.under.textContent, "");
           beep(280, 0.12, "sine");
           checkBoardDone();
         } else {
+          state.resolved = true;
           setFeedback("Just sand…", "");
           checkBoardDone();
         }
       }
 
-      function tryCatch(state) {
-        if (!gameActive || state.kind !== "crab" || state.caught || state.escaped) return;
-        if (!state.flipped) return;
+      function spawnRunners(state, count) {
+        const beachRect = beachEl.getBoundingClientRect();
+        const cellRect = state.cell.getBoundingClientRect();
+        const size = window.innerWidth >= 400 ? 64 : 56;
+        const half = size / 2;
 
-        state.caught = true;
-        if (state.escapeTimer) {
-          clearTimeout(state.escapeTimer);
-          state.escapeTimer = null;
+        // Origin: center of the flipped rock, relative to beach
+        const originX = cellRect.left - beachRect.left + cellRect.width / 2 - half;
+        const originY = cellRect.top - beachRect.top + cellRect.height / 2 - half;
+
+        // Spread angles evenly with a little jitter so they fan out
+        const base = Math.random() * Math.PI * 2;
+        const step = (Math.PI * 2) / count;
+
+        for (let i = 0; i < count; i++) {
+          const angle = base + step * i + (Math.random() - 0.5) * 0.45;
+          const speed = SPEED_MIN + Math.random() * (SPEED_MAX - SPEED_MIN);
+          const vx = Math.cos(angle) * speed;
+          const vy = Math.sin(angle) * speed;
+
+          const el = document.createElement("button");
+          el.type = "button";
+          el.className = "runner";
+          el.textContent = CRAB;
+          el.setAttribute("aria-label", "Tap the crab!");
+          el.style.left = originX + "px";
+          el.style.top = originY + "px";
+
+          const runner = {
+            el: el,
+            x: originX,
+            y: originY,
+            vx: vx,
+            vy: vy,
+            size: size,
+            born: performance.now(),
+            life: CRAB_LIFE_MS + Math.random() * 250,
+            done: false,
+            state: state
+          };
+
+          el.addEventListener("click", function (e) {
+            e.stopPropagation();
+            catchRunner(runner);
+          });
+          el.addEventListener("touchstart", function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            catchRunner(runner);
+          }, { passive: false });
+
+          beachEl.appendChild(el);
+          runners.push(runner);
         }
-        state.under.classList.remove("catchable");
-        state.under.classList.add("caught");
+
+        ensureLoop();
+      }
+
+      function ensureLoop() {
+        if (!rafId) {
+          lastTs = 0;
+          rafId = requestAnimationFrame(tickRunners);
+        }
+      }
+
+      function tickRunners(ts) {
+        rafId = null;
+        if (!gameActive && runners.every(function (r) { return r.done; })) {
+          return;
+        }
+
+        if (!lastTs) lastTs = ts;
+        const dt = Math.min(0.05, (ts - lastTs) / 1000);
+        lastTs = ts;
+
+        const beachW = beachEl.clientWidth;
+        const beachH = beachEl.clientHeight;
+        const now = performance.now();
+        let anyAlive = false;
+
+        for (let i = 0; i < runners.length; i++) {
+          const r = runners[i];
+          if (r.done) continue;
+
+          r.x += r.vx * dt;
+          r.y += r.vy * dt;
+          r.el.style.left = r.x + "px";
+          r.el.style.top = r.y + "px";
+
+          const off =
+            r.x + r.size < -8 ||
+            r.y + r.size < -8 ||
+            r.x > beachW + 8 ||
+            r.y > beachH + 8;
+
+          if (off || now - r.born >= r.life) {
+            escapeRunner(r);
+          } else {
+            anyAlive = true;
+          }
+        }
+
+        // Prune finished nodes after a short delay is handled in escape/catch
+        if (anyAlive || runners.some(function (r) { return !r.done; })) {
+          rafId = requestAnimationFrame(tickRunners);
+        } else {
+          lastTs = 0;
+        }
+      }
+
+      function catchRunner(runner) {
+        if (!gameActive || runner.done) return;
+        runner.done = true;
+        runner.el.classList.add("caught");
+        runner.el.style.pointerEvents = "none";
         score++;
         scoreEl.textContent = String(score);
         setFeedback("Gotcha! 🦀 +" + score, "good");
         beep(660, 0.1, "sine");
         setTimeout(function () { beep(880, 0.12, "sine"); }, 80);
-        checkBoardDone();
+
+        const st = runner.state;
+        st.pending = Math.max(0, st.pending - 1);
+        if (st.pending === 0) {
+          st.resolved = true;
+          checkBoardDone();
+        }
+
+        setTimeout(function () {
+          if (runner.el && runner.el.parentNode) {
+            runner.el.parentNode.removeChild(runner.el);
+          }
+        }, 400);
       }
 
-      function escapeCrab(state) {
-        if (state.caught || state.escaped) return;
-        state.escaped = true;
-        state.under.classList.remove("catchable");
-        state.under.classList.add("escaping");
-        setFeedback("Got away!", "bad");
-        beep(180, 0.2, "sawtooth");
+      function escapeRunner(runner) {
+        if (runner.done) return;
+        runner.done = true;
+        runner.el.classList.add("escaping");
+        runner.el.style.pointerEvents = "none";
+        if (gameActive) {
+          setFeedback("Got away!", "bad");
+          beep(180, 0.18, "sawtooth");
+        }
+
+        const st = runner.state;
+        st.pending = Math.max(0, st.pending - 1);
+        if (st.pending === 0) {
+          st.resolved = true;
+          checkBoardDone();
+        }
+
         setTimeout(function () {
-          state.under.classList.remove("visible", "escaping");
-          state.under.textContent = "💨";
-          state.under.classList.add("visible");
-          state.under.style.opacity = "0.5";
-        }, 550);
-        checkBoardDone();
+          if (runner.el && runner.el.parentNode) {
+            runner.el.parentNode.removeChild(runner.el);
+          }
+        }, 300);
       }
 
       function checkBoardDone() {
         if (!gameActive) return;
-        // Done when every cell is resolved: flipped and (not crab, or crab caught/escaped)
         const allDone = cells.every(function (c) {
           if (!c.flipped) return false;
-          if (c.kind === "crab") return c.caught || c.escaped;
-          return true;
+          return c.resolved;
         });
-        if (allDone) {
+        // Also wait until no runners still active from last rock
+        const noRunners = runners.every(function (r) { return r.done; });
+        if (allDone && noRunners) {
           endRound();
         }
       }
@@ -654,9 +819,10 @@
 
       function endMessage(n) {
         if (n === 0) return "Keep trying — those crabs are sneaky!";
-        if (n <= 2) return "Nice start! Can you catch more?";
-        if (n <= 4) return "Awesome crab catching!";
-        return "Wow! You're a crab champion! 🏆";
+        if (n <= 5) return "Nice start! Can you catch more?";
+        if (n <= 12) return "Awesome crab catching!";
+        if (n <= 20) return "Wow! You're a crab champion! 🏆";
+        return "Zayn is a crab-catching superstar! 🏆🦀";
       }
 
       function endRound() {
@@ -666,13 +832,12 @@
           clearInterval(timerId);
           timerId = null;
         }
+        // Let any remaining runners escape visually
+        runners.forEach(function (r) {
+          if (!r.done) escapeRunner(r);
+        });
         cells.forEach(function (c) {
-          if (c.escapeTimer) {
-            clearTimeout(c.escapeTimer);
-            c.escapeTimer = null;
-          }
           c.rock.classList.add("disabled");
-          c.under.classList.remove("catchable");
         });
         finalScoreEl.textContent = String(score);
         endMsgEl.textContent = endMessage(score);
